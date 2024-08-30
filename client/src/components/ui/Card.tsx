@@ -13,6 +13,8 @@ export default function Card(): React.JSX.Element {
   const [opponentGameStatus, setOpponentGameStatus] = useState<string | null>(null);
 
   const [currentPlayer, setCurrentPlayer] = useState<'player' | 'opponent'>('player');
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [textColor, setTextColor] = useState<string>('black');
 
   useEffect(() => {
     async function initializeDeck() {
@@ -66,8 +68,10 @@ export default function Card(): React.JSX.Element {
 
       if (score + cardValue === 21) {
         setGameStatus('You win!');
+        setGameOver(true);
       } else if (score + cardValue > 21) {
         setGameStatus('You lose!');
+        setGameOver(true);
       }
     } catch (error) {
       console.error('Error drawing card:', error);
@@ -82,23 +86,48 @@ export default function Card(): React.JSX.Element {
         params: { count: 1 },
       });
       const newCard = drawResponse.data.cards[0];
-      setOpponentCards((prevCards) => [...prevCards, newCard]);
+      setOpponentCards((prevCards) => [...prevCards, { ...newCard, hidden: prevCards.length < 2 }]);
 
       const cardValue = calculateCardValue(newCard, opponentScore);
       setOpponentScore((prevScore) => prevScore + cardValue);
 
       if (opponentScore + cardValue === 21) {
-        setOpponentGameStatus('Opponent wins!');
+        setOpponentGameStatus('Dealer wins!');
+        setGameStatus('Dealer wins!');
+        setGameOver(true);
       } else if (opponentScore + cardValue > 21) {
-        setOpponentGameStatus('Opponent loses!');
+        setOpponentGameStatus('Dealer loses!');
+        setGameStatus('You win!'); // Обновляем gameStatus при переборе дилера
+        setGameOver(true);
       }
     } catch (error) {
-      console.error('Error drawing opponent card:', error);
+      console.error('Error drawing Dealer card:', error);
     }
   };
 
   const switchTurn = () => {
-    setCurrentPlayer((prevPlayer) => (prevPlayer === 'player' ? 'opponent' : 'player'));
+    setCurrentPlayer('opponent');
+    revealOpponentCards();
+  };
+
+  const revealOpponentCards = async () => {
+    if (opponentCards.length > 0) {
+      setTimeout(() => {
+        setOpponentCards((prevCards) => {
+          const updatedCards = [...prevCards];
+          updatedCards[0].hidden = false;
+          return updatedCards;
+        });
+      }, 1000);
+
+      setTimeout(() => {
+        setOpponentCards((prevCards) => {
+          const updatedCards = [...prevCards];
+          updatedCards[1].hidden = false;
+          return updatedCards;
+        });
+      }, 2000);
+    }
   };
 
   const calculateCardValue = (card: any, currentScore: number) => {
@@ -109,28 +138,75 @@ export default function Card(): React.JSX.Element {
     return parseInt(card.value, 10);
   };
 
+  const restartGame = async () => {
+    try {
+      const shuffleResponse = await axios.get('https://deckofcardsapi.com/api/deck/new/shuffle/', {
+        params: { deck_count: 1 },
+      });
+      setDeckId(shuffleResponse.data.deck_id);
+      setCards([]);
+      setScore(0);
+      setGameStatus(null);
+      setOpponentCards([]);
+      setOpponentScore(0);
+      setOpponentGameStatus(null);
+      setCurrentPlayer('player');
+      setGameOver(false);
+      setTextColor('black');
+    } catch (error) {
+      console.error('Error initializing deck:', error);
+    }
+  };
+
+  const checkGameResult = () => {
+    if (opponentScore > score && opponentScore <= 21) {
+      setGameStatus('Dealer wins!');
+    } else if (opponentScore < score) {
+      setGameStatus('You win!');
+    } else if (opponentScore === score) {
+      setGameStatus('Draw!');
+      setTextColor('red');
+      setTimeout(() => setTextColor('black'), 2000);
+    }
+    setGameOver(true);
+  };
+
   return (
     <div className="card-page">
-      <div className="button-container">
-        <button
-          onClick={drawCardForPlayer}
-          disabled={gameStatus !== null || currentPlayer !== 'player'}
-        >
-          Взять еще
-        </button>
-        <button
-          onClick={drawCardForOpponent}
-          disabled={opponentGameStatus !== null || currentPlayer !== 'opponent'}
-        >
-          Ход второго игрока
-        </button>
-        <button onClick={switchTurn} disabled={gameStatus !== null || opponentGameStatus !== null}>
-          Переход хода
-        </button>
+      {gameOver && (
+        <div className="game-result">
+          <h1 style={{ color: 'white', fontSize: '48px' }}>{gameStatus}</h1>
+        </div>
+      )}
+      <div className="button-container left">
+        {gameOver ? (
+          <button onClick={restartGame}>Сыграть еще раз</button>
+        ) : (
+          <>
+            <button
+              onClick={currentPlayer === 'player' ? drawCardForPlayer : drawCardForOpponent}
+              disabled={gameStatus !== null || gameOver}
+            >
+              Взять еще
+            </button>
+            <button
+              onClick={currentPlayer === 'opponent' ? checkGameResult : switchTurn}
+              disabled={gameStatus !== null || opponentGameStatus !== null}
+            >
+              Хватит
+            </button>
+          </>
+        )}
+      </div>
+      <div className="status-container right" style={{ color: textColor }}>
+        {gameOver ? (
+          <p>{gameStatus}</p>
+        ) : (
+          <p>{currentPlayer === 'player' ? 'Ваш ход' : 'Ход дилера'}</p>
+        )}
       </div>
       <div>
         <h2>You</h2>
-        {gameStatus && <p>{gameStatus}</p>}
         <p>Score: {score}</p>
         <div>
           {cards.map((card, index) => (
@@ -140,11 +216,14 @@ export default function Card(): React.JSX.Element {
       </div>
       <div>
         <h2>Dealer</h2>
-        {opponentGameStatus && <p>{opponentGameStatus}</p>}
-        <p>Score: {opponentScore}</p>
+        <p>Score: {opponentCards.some(card => card.hidden) ? '??' : opponentScore}</p>
         <div>
           {opponentCards.map((card, index) => (
-            <img key={index} src={card.image} alt={card.code} />
+            <img
+              key={index}
+              src={card.hidden ? 'https://deckofcardsapi.com/static/img/back.png' : card.image}
+              alt={card.code}
+            />
           ))}
         </div>
       </div>
