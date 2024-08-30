@@ -5,11 +5,11 @@ import Navbar from 'react-bootstrap/Navbar';
 
 export default function NavBar(): React.JSX.Element {
   return (
-    <Navbar bg="primary" data-bs-theme="dark">
+    <Navbar bg="success" data-bs-theme="dark">
       <Container>
-        <Navbar.Brand href="#home">Blackjack</Navbar.Brand>
+        <Navbar.Brand href="/rules">Rules</Navbar.Brand>
         <Nav className="me-auto">
-          <Nav.Link href="/">Home</Nav.Link>
+          <Nav.Link href="/">Play Blackjack</Nav.Link>
 
         </Nav>
       </Container>

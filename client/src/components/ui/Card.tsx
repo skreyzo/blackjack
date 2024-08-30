@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import '../css/cardPage.css';
 
-export default function MainPage(): React.JSX.Element {
+export default function Card(): React.JSX.Element {
   const [deckId, setDeckId] = useState<string | null>(null);
   const [cards, setCards] = useState<any[]>([]);
   const [score, setScore] = useState<number>(0);
@@ -31,7 +32,26 @@ export default function MainPage(): React.JSX.Element {
     initializeDeck();
   }, []);
 
-  const drawCard = async () => {
+  useEffect(() => {
+    if (deckId) {
+      const drawInitialCards = async () => {
+        await drawCardForPlayer();
+        setTimeout(async () => {
+          await drawCardForPlayer();
+          setTimeout(async () => {
+            await drawCardForOpponent();
+            setTimeout(async () => {
+              await drawCardForOpponent();
+            }, 500);
+          }, 500);
+        }, 500);
+      };
+
+      drawInitialCards();
+    }
+  }, [deckId]);
+
+  const drawCardForPlayer = async () => {
     if (!deckId) return;
 
     try {
@@ -41,7 +61,7 @@ export default function MainPage(): React.JSX.Element {
       const newCard = drawResponse.data.cards[0];
       setCards((prevCards) => [...prevCards, newCard]);
 
-      const cardValue = calculateCardValue(newCard);
+      const cardValue = calculateCardValue(newCard, score);
       setScore((prevScore) => prevScore + cardValue);
 
       if (score + cardValue === 21) {
@@ -54,7 +74,7 @@ export default function MainPage(): React.JSX.Element {
     }
   };
 
-  const drawOpponentCard = async () => {
+  const drawCardForOpponent = async () => {
     if (!deckId) return;
 
     try {
@@ -64,7 +84,7 @@ export default function MainPage(): React.JSX.Element {
       const newCard = drawResponse.data.cards[0];
       setOpponentCards((prevCards) => [...prevCards, newCard]);
 
-      const cardValue = calculateCardValue(newCard);
+      const cardValue = calculateCardValue(newCard, opponentScore);
       setOpponentScore((prevScore) => prevScore + cardValue);
 
       if (opponentScore + cardValue === 21) {
@@ -81,22 +101,37 @@ export default function MainPage(): React.JSX.Element {
     setCurrentPlayer((prevPlayer) => (prevPlayer === 'player' ? 'opponent' : 'player'));
   };
 
-  const calculateCardValue = (card: any) => {
-    if (card.value === 'ACE') return 11;
+  const calculateCardValue = (card: any, currentScore: number) => {
+    if (card.value === 'ACE') {
+      return currentScore >= 11 ? 1 : 11;
+    }
     if (['KING', 'QUEEN', 'JACK'].includes(card.value)) return 10;
     return parseInt(card.value, 10);
   };
 
   return (
-    <div>
-      <h1>Blackjack Game</h1>
+    <div className="card-page">
+      <div className="button-container">
+        <button
+          onClick={drawCardForPlayer}
+          disabled={gameStatus !== null || currentPlayer !== 'player'}
+        >
+          Взять еще
+        </button>
+        <button
+          onClick={drawCardForOpponent}
+          disabled={opponentGameStatus !== null || currentPlayer !== 'opponent'}
+        >
+          Ход второго игрока
+        </button>
+        <button onClick={switchTurn} disabled={gameStatus !== null || opponentGameStatus !== null}>
+          Переход хода
+        </button>
+      </div>
       <div>
         <h2>You</h2>
         {gameStatus && <p>{gameStatus}</p>}
         <p>Score: {score}</p>
-        <button onClick={drawCard} disabled={gameStatus !== null || currentPlayer !== 'player'}>
-          Draw Card
-        </button>
         <div>
           {cards.map((card, index) => (
             <img key={index} src={card.image} alt={card.code} />
@@ -104,21 +139,15 @@ export default function MainPage(): React.JSX.Element {
         </div>
       </div>
       <div>
-        <h2>Opponent</h2>
+        <h2>Dealer</h2>
         {opponentGameStatus && <p>{opponentGameStatus}</p>}
         <p>Score: {opponentScore}</p>
-        <button onClick={drawOpponentCard} disabled={opponentGameStatus !== null || currentPlayer !== 'opponent'}>
-          Ход второго игрока
-        </button>
         <div>
           {opponentCards.map((card, index) => (
             <img key={index} src={card.image} alt={card.code} />
           ))}
         </div>
       </div>
-      <button onClick={switchTurn} disabled={gameStatus !== null || opponentGameStatus !== null}>
-        Переход хода
-      </button>
     </div>
   );
 }
